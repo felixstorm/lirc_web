@@ -54,6 +54,10 @@ $(function() {
     // Remove 300ms delay after tapping
     OSUR.fastClick = new FastClick(document.body);
 
+    var remotes_a = $('.remotes-nav a');
+    if (remotes_a.size() == 1) {
+        remotes_a[0].click();
+    }
 });
 
 OSUR.util.hasTouchEvents = function() {

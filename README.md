@@ -1,3 +1,6 @@
+## This is only a fork of git://github.com/alexbain/lirc_web.git for personal use.
+## <br>
+
 lirc_web
 ========
 
