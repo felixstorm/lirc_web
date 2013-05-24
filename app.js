@@ -121,6 +121,6 @@ app.post('/remotes/:remote/:command', function(req, res) {
 });
 
 
-// Listen on port 3000
-app.listen(3000);
-console.log("Open Source Universal Remote UI + API has started on port 3000.");
+// Listen on port 80
+app.listen(80);
+console.log("Open Source Universal Remote UI + API has started on port 80.");
