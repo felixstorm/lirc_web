@@ -30,9 +30,13 @@ var JST = {
 // lic_node initialization
 //
 if (!DEVELOPER_MODE) {
-    lirc_node.init();
+    lirc_node.init(function() {
+        // Add reboot commands
+        for (var key in lirc_node.remotes) {
+            lirc_node.remotes[key].push({ command: 'reboot', display: 'Reboot RPI', exec: 'sudo reboot'});
+        }
+    });
 }
-
 
 //
 // Overwrite the remotes to be a default set if DEVELOPER_MODE is true
@@ -114,10 +118,21 @@ app.get('/', function(req, res) {
 
 // API endpoint
 app.post('/remotes/:remote/:command', function(req, res) {
-    console.log("Sending " + req.params.command + " to " + req.params.remote);
-    lirc_node.irsend.send_once(req.params.remote, req.params.command, function() {});
-    res.setHeader('Cache-Control', 'no-cache');
-    res.send(200);
+    console.log("Send Request: " + req.params.command + " to " + req.params.remote);
+    var remoteItem = lirc_node.remotes[req.params.remote].filter(function(item) { return (item.command || item) == req.params.command; });
+    if (remoteItem.length) {
+        remoteItem = remoteItem[0];
+		if (remoteItem.exec) {
+			require('child_process').exec(remoteItem.exec);
+		} else {
+			lirc_node.irsend.send_once(req.params.remote, remoteItem.command || remoteItem);
+		}
+        res.setHeader('Cache-Control', 'no-cache');
+        res.send(200);
+	} else {
+        res.setHeader('Cache-Control', 'no-cache');
+        res.send(404);
+	}
 });
 
 
