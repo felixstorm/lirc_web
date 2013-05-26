@@ -33,6 +33,7 @@ if (!DEVELOPER_MODE) {
     lirc_node.init(function() {
         // Add reboot commands
         for (var key in lirc_node.remotes) {
+            lirc_node.remotes[key].push({ command: 'reset_volume', display: 'Reset Rec. Volume', exec: '/etc/lirc/reset_volume'});
             lirc_node.remotes[key].push({ command: 'reboot', display: 'Reboot RPI', exec: 'sudo reboot'});
         }
     });
