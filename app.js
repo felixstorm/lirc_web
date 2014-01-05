@@ -4,6 +4,12 @@
 // Alex Bain <alex@alexba.in>
 //
 
+var HTTP_PORT = 80;
+
+var SONOS_IP = '192.168.0.104';
+var SONOS_CHECK_INTERVAL_MSEC = 2000;
+var SONOS_AMP_SWITCH_OFF_DELAY_SEC = 600;
+
 // Set this to true if you'd like to emulate a list of remotes for development
 var DEVELOPER_MODE = false;
 
@@ -13,7 +19,8 @@ var DEVELOPER_MODE = false;
 var express = require('express'),
     lirc_node = require('lirc_node'),
     consolidate = require('consolidate'),
-    swig = require('swig');
+    swig = require('swig'),
+    sonos = require('sonos');
 
 var app = module.exports = express();
 
@@ -119,24 +126,73 @@ app.get('/', function(req, res) {
 
 // API endpoint
 app.post('/remotes/:remote/:command', function(req, res) {
-    console.log("Send Request: " + req.params.command + " to " + req.params.remote);
-    var remoteItem = lirc_node.remotes[req.params.remote].filter(function(item) { return (item.command || item) == req.params.command; });
-    if (remoteItem.length) {
-        remoteItem = remoteItem[0];
-		if (remoteItem.exec) {
-			require('child_process').exec(remoteItem.exec);
-		} else {
-			lirc_node.irsend.send_once(req.params.remote, remoteItem.command || remoteItem);
-		}
-        res.setHeader('Cache-Control', 'no-cache');
-        res.send(200);
-	} else {
-        res.setHeader('Cache-Control', 'no-cache');
-        res.send(404);
-	}
+    res.setHeader('Cache-Control', 'no-cache');
+    if (SendRequest(req.params.remote, req.params.command))
+        res.Send(200);
+    else
+        res.Send(404);
 });
 
 
-// Listen on port 80
-app.listen(80);
-console.log("Open Source Universal Remote UI + API has started on port 80.");
+// Http Listen
+app.listen(HTTP_PORT);
+console.log("Open Source Universal Remote UI + API has started on port %d.", HTTP_PORT);
+
+
+// Sonos loop
+if (SONOS_IP) {
+    var wasPlaying = false;
+    var playPauseCountdown = 0;
+    var mySonos = new sonos.Sonos(SONOS_IP);
+    
+    setInterval(function() {
+        if (playPauseCountdown > 0)
+        {
+            playPauseCountdown--;
+            if (playPauseCountdown <= 0)
+                console.log('Sonos: Switching amp off.');
+        }
+
+        GetIsPlaying(mySonos, function(isPlaying) {
+            if (isPlaying != wasPlaying)
+            {
+                if (isPlaying)
+                {
+                    console.log('Sonos: Switching amp on.');
+                    playPauseCountdown = 0;
+                } else {
+                    console.log('Sonos: Detected pause, starting countdown.');
+                    playPauseCountdown = SONOS_AMP_SWITCH_OFF_DELAY_SEC * 1000 / SONOS_CHECK_INTERVAL_MSEC;
+                }
+            }
+            wasPlaying = isPlaying;
+        });
+    }, SONOS_CHECK_INTERVAL_MSEC);
+    
+    console.log('Sonos Amplifier Power Control has started - delay is %d seconds.', SONOS_AMP_SWITCH_OFF_DELAY_SEC);
+};
+
+function GetIsPlaying(device, callback) {
+    var action = '"urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo"';
+    var body = '<u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID></u:GetTransportInfo>';
+    device.request('/MediaRenderer/AVTransport/Control', action, body, 'u:GetTransportInfoResponse', function(err, data) {
+        if(data[0] && data[0].CurrentTransportState && data[0].CurrentTransportState[0])
+            return callback(data[0].CurrentTransportState[0] == 'PLAYING');
+        else
+            return callback(false);
+    });
+};
+
+function SendRequest(remote, command) {
+    console.log("Send Request: " + command + " to " + remote);
+    var remoteItem = lirc_node.remotes[remote].filter(function(item) { return (item.command || item) == command; });
+    if (remoteItem.length) {
+        remoteItem = remoteItem[0];
+        if (remoteItem.exec) {
+            require('child_process').exec(remoteItem.exec);
+        } else {
+            lirc_node.irsend.send_once(remote, remoteItem.command || remoteItem);
+        }
+        return true;
+    };
+};
